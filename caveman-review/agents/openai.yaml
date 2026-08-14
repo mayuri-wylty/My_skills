@@ -1,0 +1,4 @@
+interface:
+  display_name: "Caveman Review"
+  short_description: "Write terse, actionable code review findings."
+  default_prompt: "Use $caveman-review to review this diff with concise, actionable findings."

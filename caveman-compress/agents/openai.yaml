@@ -1,0 +1,4 @@
+interface:
+  display_name: "Caveman Compress"
+  short_description: "Compress prose while preserving code and structure."
+  default_prompt: "Use $caveman-compress to safely shorten this prose file while preserving code and technical content."

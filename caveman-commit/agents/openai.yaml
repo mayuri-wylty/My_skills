@@ -1,0 +1,4 @@
+interface:
+  display_name: "Caveman Commit"
+  short_description: "Generate terse, exact Conventional Commits."
+  default_prompt: "Use $caveman-commit to write a concise Conventional Commit message for this diff."
