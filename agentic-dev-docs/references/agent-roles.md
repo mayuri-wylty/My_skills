@@ -59,6 +59,7 @@ Every generated role must appear in a permission matrix with:
 - role/instance name
 - role type
 - default Codex agent type
+- default model
 - write permission
 - writable scope
 - forbidden scope
@@ -67,6 +68,14 @@ Every generated role must appear in a permission matrix with:
 - close condition
 
 No role outside the matrix may edit product code.
+
+## Runtime assignment
+
+Every real subagent assignment records `model` and `reasoning_effort`. Without a task or workstream override, use `model: gpt-5.6-luna` and `reasoning_effort: max`. Runtime rejection is a `BLOCKED-HUMAN` event, not permission to silently use another model.
+
+## Local commits
+
+An independently verified task may be committed locally. Push, PR creation, and remote branch changes require explicit authorization.
 
 ## Serial and parallel rules
 Main dependency chain:

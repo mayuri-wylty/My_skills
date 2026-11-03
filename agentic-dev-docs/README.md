@@ -4,7 +4,7 @@
 
 这套控制包的目标是让后续开发过程更可控：先明确项目画像、阶段边界、权限矩阵、workstream 分工、Review 和审计规则，再由唯一的 A 主控智能体协调执行。
 
-当前版本：`0.6.4`
+当前版本：`0.7.0`
 
 GitHub 仓库：<https://github.com/mayuri-wylty/agentic-dev-docs>
 
@@ -32,6 +32,10 @@ GitHub 仓库：<https://github.com/mayuri-wylty/agentic-dev-docs>
 - 你希望新 Codex 窗口能通过启动提示词快速接管项目。
 - 你希望结合 Codex `/goal` 模式追踪较长的开发执行目标。
 - 你希望在 workstream、Review 和审计任务中记录推荐 reasoning effort。
+- 你希望统一约束真实子智能体模型，默认使用 `gpt-5.6-luna` + `max`。
+- 你希望开发者介入问题可记录、跳过并继续推进独立任务。
+- 你希望开发控制包包含可追踪的用户故事文档。
+- 你希望独立任务可阶段性本地提交，但默认禁止推送。
 - 你希望在作 plan 前显式指定全局 skill 或某类任务专用 skill。
 
 不适合的场景：
@@ -114,11 +118,12 @@ docs-revision-workstream
 | Role / instance | 精确角色或实例名 |
 | Type | A 主控、实现 workstream、Review、审计、文档等 |
 | Default agent | 当前会话、worker、explorer 或逻辑实例 |
+| Default model | 请求模型；未覆盖时为 `gpt-5.6-luna` |
 | Product-code write | 是否允许写产品代码 |
 | Writable scope | 可写目录、文件类型、模块或文档范围 |
 | Forbidden scope | 禁止触碰的范围 |
 | Required evidence | 测试、构建、截图、日志、Review 或审计证据 |
-| Recommended reasoning effort | 推荐思考程度：low、medium、high 或 xhigh |
+| Recommended reasoning effort | 推荐思考程度：low、medium、high、xhigh 或 max |
 | Skill routing | 用户显式指定的全局继承 skill 或任务专用 skill；未指定时留空 |
 | Review owner | 负责 Review 的角色 |
 | Close condition | 关闭任务的客观证明 |
@@ -148,19 +153,26 @@ docs-revision-workstream
 
 如果使用 Codex `/goal` 模式，可以再复制同一文件中的 `/goal` 执行目标，让 Codex 长期追踪主控开发目标。
 
-## v0.6.4 新增内容
+## v0.7.0 新增内容
 
-v0.6.4 强化真实子智能体的 reasoning effort 显式传递规则。
+v0.7.0 增加真实子智能体模型约束、开发者介入阻塞处理、用户故事文档和阶段性本地提交策略。
 
-创建或派发真实子智能体时，A 主控不得默认让子智能体继承父会话思考程度。必须先读取权限矩阵中的 `Recommended reasoning effort`，并在任务说明或调用参数中显式传递或要求 `reasoning_effort`。
+创建或派发真实子智能体时，A 主控必须在任务说明或调用参数中显式传递 `model` 和 `reasoning_effort`。
 
-优先级固定为：
+未有任务或 workstream 覆盖时，默认：
 
 ```text
-permission matrix recommended value -> parent session default -> documented exception with A-main-control confirmation
+model: gpt-5.6-luna
+reasoning_effort: max
 ```
 
-只有目标 workstream 没有配置推荐值时，才继承父会话默认 `reasoning_effort`，并在任务进度中记录 fallback。若因成本、速度或工具限制需要调整推荐值，必须先记录原因并获得 A 主控确认。
+优先级为：任务声明 -> workstream 权限矩阵声明 -> 全局默认。只声明一个字段时，另一个字段独立回退全局默认。显式模型值不设 skill 内白名单，原样传递。运行时不接受指定模型或 effort 时，记录 `BLOCKED-HUMAN` 和原始错误，不得静默降级。
+
+需要用户或开发者介入的问题，A 主控必须先自行排查和修复。仍无法解决时记录 `BLOCKED-HUMAN`、原因、影响、已尝试动作、所需输入、责任人、重试条件和替代路径；跳过阻塞点，继续无依赖任务；在阶段边界、依赖变化或输入到达时重试。
+
+最小、标准、完整文档集都包含 `用户故事.md`。每个故事必须有 Persona、用户目标/价值、主流程、异常流程、Given/When/Then 验收标准，以及需求、任务、测试追踪。
+
+独立任务验证通过后允许创建本地 commit，并记录 hash。未经项目 plan 或用户明确授权，不得 `git push`、创建 PR 或修改远程分支。
 
 ## v0.6.3 新增内容
 
@@ -194,20 +206,15 @@ v0.6.3 增加显式 skill routing 策略。
 
 A 主控派发任务前必须合并全局 skill 和任务专用 skill，并在任务说明中显式写出 required skill 的触发语。
 
-## v0.6.2 新增内容
+## Reasoning effort 规则
 
-v0.6.2 增加 reasoning effort 策略。
+生成 workstream registry、permission matrix 或任务分配时，必须记录 `model` 和 `reasoning_effort`。
 
-生成 workstream registry、permission matrix 或任务分配时，需要记录推荐思考程度：
-
-- `A-main-control` 默认 `high`。
-- 最终裁决、跨 workstream 冲突、权限缺陷和最终审计使用 `xhigh`。
-- 普通 implementation workstream 默认 `medium`。
-- 简单查找、整理、格式化和低风险文档清理使用 `low` 或 `medium`。
-- contract-review、security-review、progress-audit 和高风险 Review 使用 `high`。
-- final closeout audit 使用 `xhigh`。
-
-当真实 subagent 或调用接口支持 reasoning effort 时，A 主控必须在派发任务时设置或明确要求对应档位；若平台不支持直接设置，也必须把推荐档位作为执行约束记录在文档中。v0.6.4 起，真实子智能体优先按权限矩阵 `Recommended reasoning effort` 显式传递或要求 `reasoning_effort`，只有矩阵未配置推荐值时才继承父会话默认值。
+- 未有任务或 workstream 覆盖时，真实子智能体使用 `model: gpt-5.6-luna`、`reasoning_effort: max`。
+- 任务声明优先于 workstream 权限矩阵声明，权限矩阵声明优先于全局默认。
+- 只声明一个字段时，另一个字段独立回退全局默认。
+- `low`、`medium`、`high`、`xhigh`、`max` 都是可记录值；角色建议值只有被明确写入任务或矩阵时才覆盖全局 `max`。
+- 运行时不接受指定模型或 effort 时，记录 `BLOCKED-HUMAN` 和原始错误，不得静默降级。
 
 ## v0.6.1 新增内容
 
@@ -221,16 +228,14 @@ v0.6.1 增加 Codex `/goal` 模式启动支持。
 示例：
 
 ```text
-/goal 作为本项目唯一 A 主控智能体，按开发文档目录中的控制包完成主控开发执行：先完成启动前环境核验，读取总控入口、任务进度、协作规范和权限矩阵；创建或复用授权 workstream；协调实现、测试、Review 和进度一致性审计；最终向用户汇报证据、风险和人工测试结果。默认不要提交代码、不要推送代码，除非本项目 plan 或用户后续消息明确授权。
+/goal 作为本项目唯一 A 主控智能体，按开发文档目录中的控制包完成主控开发执行：先完成启动前环境核验，读取总控入口、用户故事、任务进度、协作规范和权限矩阵；创建或复用授权 workstream；为真实子智能体显式传递 `model` 和 `reasoning_effort`，无覆盖时使用 `gpt-5.6-luna` + `max`；遇到开发者介入问题记录 `BLOCKED-HUMAN`，继续独立任务并按条件重试；协调实现、测试、Review 和进度一致性审计；独立任务验证通过后允许本地 commit，未经明确授权不得 push、创建 PR 或修改远程分支；最终向用户汇报证据、风险和人工测试结果。
 ```
 
 默认策略：
 
-- 不提交代码。
-- 不推送代码。
-- 不创建 PR。
-
-只有项目 plan 或用户后续消息明确授权时，才允许把提交、PR 或推送作为执行收尾步骤。
+- 独立任务验证通过后允许本地 commit，并记录 hash。
+- 未经项目 plan 或用户后续消息明确授权，不推送代码。
+- 未经单独明确授权，不创建 PR 或修改远程分支。
 
 ## 生成的文档包
 
@@ -244,6 +249,7 @@ v0.6.1 增加 Codex `/goal` 模式启动支持。
 00_新窗口启动提示词.md
 00_启动前环境核验.md
 00_总控开发入口.md
+用户故事.md
 01_需求规格说明.md
 02_任务进度.md
 03_多智能体开发协作规范.md
@@ -259,6 +265,7 @@ v0.6.1 增加 Codex `/goal` 模式启动支持。
 00_新窗口启动提示词.md
 00_启动前环境核验.md
 00_总控开发入口.md
+用户故事.md
 01_项目总规划.md
 02_需求规格说明.md
 03_系统设计说明.md
@@ -288,6 +295,8 @@ v0.6.1 增加 Codex `/goal` 模式启动支持。
 回归测试计划.md
 风险清单.md
 ```
+
+完整文档集沿用标准文档集中的 `用户故事.md`。
 
 ## 安装
 
@@ -322,6 +331,7 @@ agentic-dev-docs/
 ├─ assets/
 │  └─ doc-templates/
 │     ├─ 人工测试清单.template.md
+│     ├─ 用户故事.template.md
 │     ├─ 任务进度.template.md
 │     ├─ 启动前环境核验.template.md
 │     ├─ 多智能体开发协作规范.template.md
@@ -359,7 +369,9 @@ skill 会只询问会影响计划的关键问题，例如：
 - 技术栈是否已经确定？
 - 是否需要真实多智能体并行？
 - 哪些目录或模块可以并行开发？
-- 是否允许最终提交、推送或创建 PR？
+- 是否需要覆盖默认模型或 reasoning_effort？
+- 哪些问题需要开发者介入？
+- 是否需要额外授权 push、PR 或远程分支操作？
 
 ### 3. 生成计划
 
@@ -372,10 +384,14 @@ skill 会只询问会影响计划的关键问题，例如：
 - Workstream 注册表。
 - 复用策略。
 - 权限矩阵。
+- 默认模型和 reasoning_effort，以及显式覆盖规则。
 - 推荐 reasoning effort。
+- 开发者介入阻塞记录、跳过和重试规则。
+- 用户故事文档及需求/任务/测试追踪。
 - 显式 skill routing。仅当用户指定 skill 时生成；未指定时保持空白默认。
 - 契约优先规则。
 - 启动前环境核验。
+- 本地 commit、push、PR 权限边界。
 - Review 和审计门禁。
 - 验收标准。
 - 人类责任标签到 workstream 或 Review owner 的映射。
@@ -401,7 +417,7 @@ skill 会只询问会影响计划的关键问题，例如：
 3. 再复制 `/goal` 执行目标。
 4. 让 A 主控按任务进度、权限矩阵和 Review/审计门禁推进。
 
-如果项目 plan 没有明确授权提交或推送，A 主控最终只汇报变更、证据和风险，不执行 git commit、git push 或 PR 创建。
+独立任务验证通过后，A 主控或授权 workstream 可以创建本地 commit，并在任务进度记录 hash。未经项目 plan 或用户明确授权，A 主控最终只汇报变更、证据和风险，不执行 `git push`、PR 创建或远程分支操作。
 
 ## 关键安全规则
 
@@ -410,7 +426,11 @@ skill 会只询问会影响计划的关键问题，例如：
 - 产品代码、schema、OpenAPI、typed client、测试和部署脚本修改必须分配给授权 workstream 或逻辑 workstream。
 - Review、审计和 explorer 默认只读，除非文档明确授权窄范围写入。
 - 每个可写角色必须先进入权限矩阵，再接任务。
-- 每个真实 subagent 或逻辑 workstream 都要记录推荐 reasoning effort；真实子智能体派发时必须优先按权限矩阵显式传递或要求 `reasoning_effort`。
+- 每个真实 subagent 或逻辑 workstream 都要记录请求模型和 reasoning effort；未覆盖时使用 `gpt-5.6-luna` + `max`，真实派发必须显式传递两个字段。
+- 模型或 effort 被运行时拒绝时记录 `BLOCKED-HUMAN`，不得静默降级。
+- 开发者介入问题先记录、跳过阻塞点、推进独立任务，再按阶段边界或依赖变化重试。
+- 所有文档集都包含 `用户故事.md`，故事必须可追踪到需求、任务和测试。
+- 验证通过的独立任务允许本地 commit；未经明确授权禁止 push、PR 和远程分支操作。
 - 用户指定 skill 时，A 主控必须合并全局 skill 和任务专用 skill，并在任务派发中写出触发语。
 - 用户未指定 skill 时，不生成默认 skill routing。
 - 同一生命周期和复用范围内只能有一个有效实例。
@@ -433,7 +453,7 @@ skill 会只询问会影响计划的关键问题，例如：
 
 ### 默认会提交和推送代码吗？
 
-不会。v0.6.1 默认不提交、不推送、不创建 PR。是否允许这些动作，必须在 plan 中选择，或由用户后续明确授权。
+验证通过的独立任务允许本地 commit，并记录 commit hash。默认禁止 `git push`、创建 PR 和修改远程分支；这些动作必须由项目 plan 或用户后续明确授权。
 
 ### 没指定 skill 会怎样？
 
@@ -444,6 +464,18 @@ skill 会只询问会影响计划的关键问题，例如：
 因为不同项目的并行边界不同。这个 skill 要求先识别项目画像，再按实际模块、目录、服务、页面、命令、数据域或文档章节生成 workstream。
 
 ## 版本历史
+
+### v0.7.0
+
+增加真实子智能体模型约束、开发者介入阻塞处理、用户故事文档和阶段性本地提交策略。
+
+默认真实子智能体使用 `model: gpt-5.6-luna`、`reasoning_effort: max`。任务或 workstream 可显式覆盖任一字段；未覆盖字段独立回退全局默认。显式模型值不设 skill 内白名单，运行时拒绝指定值时记录 `BLOCKED-HUMAN`，不得静默降级。
+
+需要开发者或用户介入的问题必须记录原因、影响、已尝试动作、所需输入、责任人、重试条件和替代路径。A 跳过阻塞点推进独立任务，并在阶段边界、依赖变化或输入到达时重试。
+
+最小、标准、完整文档集均包含 `用户故事.md`。每个故事必须包含 Persona、用户目标/价值、主流程、异常流程、Given/When/Then 验收标准，以及需求、任务、测试追踪。
+
+独立任务验证通过后允许本地 commit。未经明确授权不得 `git push`、创建 PR 或修改远程分支。
 
 ### v0.6.4
 
@@ -535,6 +567,10 @@ skill 会只询问会影响计划的关键问题，例如：
 - 版本号是否更新。
 - 模板是否还能生成完整文档包。
 - `00_新窗口启动提示词.template.md` 是否仍包含启动提示词和 `/goal` 目标。
-- reasoning effort 是否只使用 `low`、`medium`、`high`、`xhigh`。
+- `model` 是否存在且未覆盖时为 `gpt-5.6-luna`。
+- reasoning effort 是否支持 `low`、`medium`、`high`、`xhigh`、`max`，且未覆盖时为 `max`。
+- `BLOCKED-HUMAN` 是否包含原因、影响、已尝试动作、所需输入、责任人和重试条件。
+- 所有文档集是否包含 `用户故事.md`，故事是否具备验收标准和追踪字段。
+- 验证通过任务是否可本地 commit，未授权 push/PR 规则是否仍明确。
 - 未指定 skill 时是否保持默认空白；指定 skill 时是否记录两层 skill routing、触发语和 fallback。
 - 权限矩阵、workstream 复用和 A 主控边界是否仍然明确。

@@ -25,6 +25,9 @@ Freeze before doc generation:
 - testing/review gates
 - audit gates
 - final acceptance rule
+- subagent model and reasoning-effort defaults
+- human-blocking skip and retry policy
+- local commit and remote-push policy
 
 ## Non-execution gate
 During discovery, collaboration design, plan generation, and docs generation:
@@ -58,3 +61,11 @@ Recommended gates:
 - before final handoff
 
 Final audit is mandatory. The auditor may be called D, but the label is not mandatory.
+
+## Human-blocking policy
+
+When a task requires developer or user intervention, A records `BLOCKED-HUMAN`, the exact reason, impact, attempted actions, required input, owner, and retry condition. A skips only the blocked point, continues independent work, and retries at a phase boundary, dependency change, or arrival of the required input. A does not mark blocked work complete.
+
+## Commit and push policy
+
+After an independently testable task passes verification, the responsible workstream may create a local commit and record its hash in progress. `git push`, pull-request creation, and remote branch operations require explicit plan or user authorization.

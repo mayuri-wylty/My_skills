@@ -5,7 +5,7 @@ description: Strict manual-trigger skill for docs-first agentic software develop
 
 # Agentic Dev Docs
 
-Version: 0.6.4
+Version: 0.7.0
 
 ## Manual Trigger Only
 
@@ -70,27 +70,40 @@ Each writable workstream must have:
 - writable scope;
 - forbidden scope;
 - required evidence;
-- recommended reasoning effort: low, medium, high, or xhigh;
+- default model;
+- recommended reasoning effort: low, medium, high, xhigh, or max;
 - Review owner;
 - creation condition;
 - close condition.
 
 Typical generated names should match the project, such as `sdk-cli-workstream`, `admin-ui-workstream`, `storage-executor-workstream`, `data-schema-workstream`, or `docs-revision-workstream`.
 
+## Subagent Model Policy
+
+- Default real-subagent assignment: `model: gpt-5.6-luna`, `reasoning_effort: max`.
+- Every real-subagent assignment must explicitly include both `model` and `reasoning_effort`.
+- Precedence: task declaration -> workstream permission-matrix declaration -> global default.
+- If only one field is declared, the other field falls back independently to the global default.
+- Explicit model values are passed through without a skill-level allowlist.
+- If the runtime cannot accept the requested model or reasoning effort, record `BLOCKED-HUMAN` with the exact error and do not silently downgrade.
+- Logical workstreams record requested model and effort as metadata; real subagents receive them at creation or assignment.
+
 ## Reasoning Effort Policy
 
 Use reasoning effort as a task-risk control. When real subagents or APIs support it, `A-main-control` must set or request the selected level during assignment. When direct setting is unavailable, record the recommended level in the task assignment, workstream registry, or permission matrix.
 
 - Real subagents must not silently inherit the parent session reasoning level by default.
-- Each time `A-main-control` creates or assigns a real subagent, it must explicitly pass or request `reasoning_effort` from the permission matrix column `Recommended reasoning effort`.
-- Precedence is: permission matrix recommended value -> parent session default -> documented exception with `A-main-control` confirmation.
-- If a workstream has no recommended value, inherit the parent session default `reasoning_effort` and record that fallback in task progress.
+- Each time `A-main-control` creates or assigns a real subagent, it must explicitly pass or request `reasoning_effort` from the task declaration, permission matrix, or global default.
+- Precedence is: task declaration -> permission matrix declaration -> global default `max`.
+- If a workstream has no declared effort, use `max` and record the global-default source in task progress.
 - If cost, speed, or tool limits require a different level, record the reason first and get `A-main-control` confirmation before assigning the task.
-- `A-main-control` defaults to high.
-- Final decisions, cross-workstream conflicts, permission defects, and final audits use xhigh.
-- Ordinary implementation workstreams default to medium.
-- Simple lookup, formatting, organization, and low-risk docs cleanup use low or medium.
-- Contract review, security review, progress audit, and high-risk Review use high; final closeout audit uses xhigh.
+- `A-main-control` coordination may use high.
+- Final decisions, cross-workstream conflicts, permission defects, and final audits may use xhigh.
+- Ordinary implementation workstreams may explicitly declare medium.
+- Simple lookup, formatting, organization, and low-risk docs cleanup may explicitly declare low or medium.
+- Contract review, security review, progress audit, and high-risk Review may explicitly declare high; final closeout audit may explicitly declare xhigh.
+- These role-based values override global `max` only when explicitly recorded in the task or permission matrix.
+- `max` is a valid explicit global or task-level effort.
 
 ## Explicit Skill Routing
 
@@ -132,11 +145,12 @@ Every output pack must include a permission matrix. Minimum columns:
 | Role / instance | exact name |
 | Type | A main control, implementation-workstream, review, audit, docs, one-shot |
 | Default agent | current session, worker, explorer, logical instance |
+| Default model | requested model; defaults to `gpt-5.6-luna` |
 | Product-code write | yes, no, or restricted |
 | Writable scope | directories, file types, module, or docs |
 | Forbidden scope | shared contracts, other modules, secrets, build outputs, unrelated docs |
 | Required evidence | tests, build, screenshot, log summary, Review, audit |
-| Recommended reasoning effort | low, medium, high, or xhigh |
+| Recommended reasoning effort | low, medium, high, xhigh, or max |
 | Skill routing | global inherited skills and task/workstream-specific required skills, or blank when the user specified none |
 | Review owner | exact role |
 | Close condition | objective proof |
@@ -158,11 +172,13 @@ Roles outside the matrix cannot modify product code.
 - Documentation set size: minimal, standard, or complete. Prefer references in `references/document-set.md` over repeating long lists.
 - Docs to create.
 - Workstream registry, reuse strategy, and permission matrix.
-- Recommended reasoning effort in workstream registry, permission matrix, and task assignments. For real subagents, task assignment must explicitly pass or request `reasoning_effort` from the permission matrix unless the workstream has no configured value.
+- Recommended reasoning effort in workstream registry, permission matrix, and task assignments. For real subagents, task assignment must explicitly pass or request `reasoning_effort` from the task declaration, permission matrix, or global default `max`.
+- Default model and explicit `model` value in workstream registry, permission matrix, and task assignments. Use `gpt-5.6-luna` + `max` when no override exists.
 - Explicit skill routing only when the user specified skills: global skill baseline, task/workstream skill routing, trigger wording, and fallback.
 - Contract-first rule for APIs/data.
 - Startup environment checks.
-- Code commit/push policy. Default: do not commit or push code during execution unless the project plan or a later user instruction explicitly authorizes it.
+- Code commit/push policy. A verified independent task may create a local commit. `git push`, PR creation, and remote branch operations require explicit plan or user authorization.
+- Human-blocking policy. Record `BLOCKED-HUMAN`, skip the blocked point, continue independent work, and retry at phase boundaries or dependency changes.
 - Review and audit gates.
 - Acceptance criteria.
 - Mapping from human responsibility labels to workstreams or Review owners.
@@ -184,6 +200,7 @@ The generated pack must include at least:
 - startup environment checklist;
 - main-control entry;
 - requirements/spec;
+- user stories;
 - collaboration rules;
 - A main-control rules;
 - workstream rules;
@@ -196,7 +213,7 @@ The generated pack must include at least:
 Before claiming docs are complete, verify:
 - startup prompt exists and clearly enters main-control execution phase;
 - startup prompt includes a separate copyable `/goal` execution objective;
-- `/goal` objective states that code must not be committed or pushed by default unless the plan or user explicitly authorizes it;
+- `/goal` objective states that verified tasks may be committed locally, while push and PR remain forbidden without explicit authorization;
 - startup environment checklist exists;
 - main-control entry exists;
 - progress doc exists;
@@ -204,8 +221,10 @@ Before claiming docs are complete, verify:
 - project shape is documented before workstreams;
 - each role has lifecycle, reuse scope, multi-instance rule, writable scope, forbidden scope, evidence, Review owner, and close condition;
 - each real subagent or logical workstream has a recommended reasoning effort;
-- each real subagent assignment explicitly passes or requests `reasoning_effort` from the permission matrix, or records parent-default fallback when no value is configured;
+- each real subagent or logical workstream has a requested model;
+- each real subagent assignment explicitly passes or requests both `model` and `reasoning_effort`, or records global-default fallback;
 - any reasoning effort override records cost, speed, or tool-limit reason and `A-main-control` confirmation;
+- runtime model/effort failures are recorded as `BLOCKED-HUMAN` with exact evidence;
 - if the user specified skills, global and task/workstream skill routing are recorded in the plan, startup prompt, main-control entry, collaboration rules, task progress pattern, and docs acceptance checklist;
 - if the user did not specify skills, generated docs do not invent skill requirements;
 - permission matrix exists;
@@ -214,6 +233,8 @@ Before claiming docs are complete, verify:
 - reuse and duplicate-instance handling are explicit;
 - A cannot do assigned workstream tasks without explicit user authorization, matrix update, and progress record;
 - final audit is a required gate;
+- all selected document sets include `用户故事.md` with traceable acceptance criteria;
+- verified independent tasks may have local commits, while push and PR require explicit authorization;
 - human test checklist exists;
 - docs acceptance checklist exists;
 - no unfilled placeholder markers remain unless the user requested a blank template.

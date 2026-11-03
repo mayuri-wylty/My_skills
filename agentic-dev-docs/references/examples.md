@@ -12,6 +12,7 @@ Recommended topology:
 
 Required docs:
 - `总控开发入口.md`
+- `用户故事.md`
 - requirements
 - system design
 - API contract
@@ -33,6 +34,7 @@ Recommended topology:
 
 Required docs:
 - `总控开发入口.md`
+- `用户故事.md`
 - requirements
 - CLI command contract
 - system design
@@ -52,6 +54,7 @@ Recommended topology:
 
 Required docs:
 - `总控开发入口.md`
+- `用户故事.md`
 - requirements
 - provider abstraction design
 - prompt/config strategy
@@ -68,6 +71,7 @@ Recommended topology:
 
 Keep docs minimal:
 - `总控开发入口.md`
+- `用户故事.md`
 - requirements
 - task progress
 - manual test checklist
